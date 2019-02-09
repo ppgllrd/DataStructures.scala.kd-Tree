@@ -21,16 +21,16 @@ object KdTree {
 case class KdTree(pointSet: PointSet) {
   val size : Int = pointSet.size
 
-  protected val perm = new Array[Int](size) // permutation of points
-  for(i <- perm.indices)
-    perm(i) = i // start with identity permutation
+  protected val perms = new Array[Int](size) // permutation of points
+  for(i <- perms.indices)
+    perms(i) = i // start with identity permutation
 
-  protected val bucket = new Array[Bucket](size)
+  protected val buckets = new Array[Bucket](size)
 
   protected val root : KdNode = build(0, size-1, None)
 
   private def findMaxSpread(lo : Int, hi : Int) : Coordinate.Value = {
-    val plo = perm(lo)
+    val plo = perms(lo)
     var minX = pointSet.x(plo)
     var maxX = pointSet.x(plo)
     var minY = pointSet.y(plo)
@@ -38,7 +38,7 @@ case class KdTree(pointSet: PointSet) {
 
     var i = lo+1
     while(i <= hi) {
-      val pi = perm(i)
+      val pi = perms(i)
       val x = pointSet.x(pi)
       val y = pointSet.y(pi)
 
@@ -58,9 +58,9 @@ case class KdTree(pointSet: PointSet) {
   }
 
   private def swap(i : Int, j : Int): Unit = {
-    val tmp = perm(i)
-    perm(i) = perm(j)
-    perm(j) = tmp
+    val tmp = perms(i)
+    perms(i) = perms(j)
+    perms(j) = tmp
   }
 
   /* Lomuto partition scheme.
@@ -73,14 +73,14 @@ case class KdTree(pointSet: PointSet) {
    *   points.x(perm(i)) >= points.x(perm(pivot)) forall i . p+1 <= i <= hi
    */
   private def partitionX(lo : Int, hi : Int, pivot : Int): Int = {
-    val pivotValue = pointSet.x(perm(pivot))
+    val pivotVal = pointSet.x(perms(pivot))
 
     // swap elements at hi and pivot
     swap(hi, pivot)
 
     var p = lo
     for(i <- lo until hi) {
-      if(pointSet.x(perm(i)) < pivotValue) {
+      if(pointSet.x(perms(i)) < pivotVal) {
         // swap elements at i and p
         swap(i, p)
         p += 1
@@ -112,14 +112,14 @@ case class KdTree(pointSet: PointSet) {
   }
 
   private def partitionY(lo : Int, hi : Int, pivot : Int): Int = {
-    val pivotValue = pointSet.y(perm(pivot))
+    val pivotVal = pointSet.y(perms(pivot))
 
     // swap elements at hi and pivot
     swap(hi, pivot)
 
     var p = lo
     for(i <- lo until hi) {
-      if(pointSet.y(perm(i)) < pivotValue) {
+      if(pointSet.y(perms(i)) < pivotVal) {
         // swap elements at i and p
         swap(i, p)
         p += 1
@@ -148,10 +148,10 @@ case class KdTree(pointSet: PointSet) {
 
   protected def build(lo : Int, hi : Int, parent : Option[Internal]) : KdNode =
     if(hi-lo+1 <= KdTree.bucketSize) {
-      val b = Bucket(parent, lo, hi)
+      val bucket = Bucket(parent, lo, hi)
       for(i <- lo to hi)
-        bucket(perm(i)) = b // all these points are stored in this bucket
-      b
+        buckets(perms(i)) = bucket // all these points are stored in this bucket
+      bucket
     }
     else {
       val m = (lo + hi) / 2
@@ -172,25 +172,25 @@ case class KdTree(pointSet: PointSet) {
     }
 
   def delete(i : Int): Unit = {
-    val b = bucket(i)
-    var j = b.lopt
-    while(perm(j) != i)
+    val bucket = buckets(i)
+    var j = bucket.lopt
+    while(perms(j) != i)
       j += 1
-    swap(j, b.hipt)
-    b.hipt -= 1
+    swap(j, bucket.hipt)
+    bucket.hipt -= 1
 
-    if(b.lopt > b.hipt) {
-      b.deleted = true
+    if(bucket.lopt > bucket.hipt) {
+      bucket.deleted = true
       var stop = false
-      var nodeOpt = b.parent
+      var internalOpt = bucket.parent
       while(!stop) {
-        nodeOpt match {
+        internalOpt match {
           case None =>
             stop = true
-          case Some(node) =>
-            if(node.loson.deleted && node.hison.deleted) {
-              node.deleted = true
-              nodeOpt = node.parent
+          case Some(internal) =>
+            if(internal.loson.deleted && internal.hison.deleted) {
+              internal.deleted = true
+              internalOpt = internal.parent
             } else
               stop = true
         }
@@ -203,31 +203,31 @@ case class KdTree(pointSet: PointSet) {
     var nnDist : Double = _
     var nnPtNum : Int = _
 
-    def rnn(p : KdNode): Unit = {
-      if(p.deleted)
+    def rnn(node : KdNode): Unit = {
+      if(node.deleted)
         return
 
-      p match {
-        case p: Bucket =>
-          for (i <- p.lopt to p.hipt) {
-            val pt = perm(i)
+      node match {
+        case bucket: Bucket =>
+          for (i <- bucket.lopt to bucket.hipt) {
+            val pt = perms(i)
             val dist = pointSet.distance(pt, nnTarget)
             if (dist < nnDist) {
               nnDist = dist
               nnPtNum = pt
             }
           }
-        case p: Internal =>
-          val cutVal = p.cutVal
-          val targetCoord = pointSet.coord(nnTarget, p.cutCoord)
-          if (targetCoord < cutVal) {
-            rnn(p.loson)
-            if (targetCoord + nnDist > cutVal)
-              rnn(p.hison)
+        case internal: Internal =>
+          val cutVal = internal.cutVal
+          val targetVal = pointSet.coord(nnTarget, internal.cutCoord)
+          if (targetVal < cutVal) {
+            rnn(internal.loson)
+            if (targetVal + nnDist > cutVal)
+              rnn(internal.hison)
           } else {
-            rnn(p.hison)
-            if (targetCoord - nnDist < cutVal)
-              rnn(p.loson)
+            rnn(internal.hison)
+            if (targetVal - nnDist < cutVal)
+              rnn(internal.loson)
           }
       }
     }
@@ -252,7 +252,7 @@ sealed trait KdNode {
 }
 
 case class Internal(parent : Option[Internal], cutCoord : Coordinate.Value, cutVal : Double) extends KdNode {
-  var loson : KdNode = null
+  var loson : KdNode = null // these are really immutable but cyclic structure of tree prevents using vals
   var hison : KdNode = null
 }
 
