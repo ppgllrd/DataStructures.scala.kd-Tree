@@ -150,7 +150,7 @@ case class KdTree(pointSet: PointSet) {
     if(hi-lo+1 <= KdTree.bucketSize) {
       val b = Bucket(parent, lo, hi)
       for(i <- lo to hi)
-        bucket(perm(i)) = b // all this points are stored in this bucket
+        bucket(perm(i)) = b // all these points are stored in this bucket
       b
     }
     else {
@@ -198,39 +198,51 @@ case class KdTree(pointSet: PointSet) {
     }
   }
 
+  private object Searcher {
+    var nnTarget : Int = _
+    var nnDist : Double = _
+    var nnPtNum : Int = _
 
-  def nn(j : Int): Int = {
-    var nntarget : Int = j
-    var nndist : Double = Double.MaxValue
-    var nnptnum : Int = 0
+    def rnn(p : KdNode): Unit = {
+      if(p.deleted)
+        return
 
-    def rnn(p : KdNode): Unit = p match {
-      case p : Bucket =>
-        for(i <- p.lopt to p.hipt) {
-          val permi = perm(i)
-          val thisdist = pointSet.distance(permi, nntarget)
-          if(thisdist < nndist) {
-            nndist = thisdist
-            nnptnum = permi
+      p match {
+        case p: Bucket =>
+          for (i <- p.lopt to p.hipt) {
+            val pt = perm(i)
+            val dist = pointSet.distance(pt, nnTarget)
+            if (dist < nnDist) {
+              nnDist = dist
+              nnPtNum = pt
+            }
           }
-        }
-      case p : Internal =>
-        val v = p.cutVal
-        val thisx = pointSet.coord(nntarget, p.cutCoord)
-        if(thisx < v) {
-          rnn(p.loson)
-          if(thisx + nndist > v)
-            rnn(p.hison)
-        } else {
-          rnn(p.hison)
-          if(thisx - nndist < v)
+        case p: Internal =>
+          val cutVal = p.cutVal
+          val targetCoord = pointSet.coord(nnTarget, p.cutCoord)
+          if (targetCoord < cutVal) {
             rnn(p.loson)
-        }
+            if (targetCoord + nnDist > cutVal)
+              rnn(p.hison)
+          } else {
+            rnn(p.hison)
+            if (targetCoord - nnDist < cutVal)
+              rnn(p.loson)
+          }
+      }
     }
 
-    rnn(root)
-    nnptnum
+    def topDown(i : Int): Int = {
+      nnTarget = i
+      nnDist = Double.MaxValue
+
+      rnn(root)
+      nnPtNum
+    }
   }
+
+  def nearestNeighbour(i : Int): Int =
+    Searcher.topDown(i)
 }
 
 
@@ -255,9 +267,12 @@ object Test extends App {
 
   val kd = KdTree(pointSet)
 
-  println(kd.nn(0))
-  println(kd.nn(1))
+  println(kd.nearestNeighbour(0))
+  println(kd.nearestNeighbour(1))
 
   kd.delete(14)
-  kd.delete(1)
+  kd.delete(4)
+
+  println(kd.nearestNeighbour(0))
+  println(kd.nearestNeighbour(1))
 }
