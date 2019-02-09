@@ -14,11 +14,9 @@ package kdtree
 
 import point.{Coordinate, PointSet}
 
-object KdTree {
-  val bucketSize = 3
-}
 
-case class KdTree(pointSet: PointSet) {
+
+case class KdTree(pointSet: PointSet, bucketSize : Int = 3) {
   val size : Int = pointSet.size
 
   protected val perms = new Array[Int](size) // permutation of points
@@ -147,7 +145,7 @@ case class KdTree(pointSet: PointSet) {
   }
 
   protected def build(lo : Int, hi : Int, parent : Option[Internal]) : KdNode =
-    if(hi-lo+1 <= KdTree.bucketSize) {
+    if(hi-lo+1 <= bucketSize) {
       val bucket = Bucket(parent, lo, hi)
       for(i <- lo to hi)
         buckets(perms(i)) = bucket // all these points are stored in this bucket
@@ -166,20 +164,20 @@ case class KdTree(pointSet: PointSet) {
 
       val internal = Internal(parent, cutCoord, cutVal)
       val someParent = Some(internal)
-      internal.loson = build(lo, m, someParent)
-      internal.hison = build(m+1, hi, someParent)
+      internal.loSon = build(lo, m, someParent)
+      internal.hiSon = build(m+1, hi, someParent)
       internal
     }
 
   def delete(i : Int): Unit = {
     val bucket = buckets(i)
-    var j = bucket.lopt
+    var j = bucket.lo
     while(perms(j) != i)
       j += 1
-    swap(j, bucket.hipt)
-    bucket.hipt -= 1
+    swap(j, bucket.hi)
+    bucket.hi -= 1
 
-    if(bucket.lopt > bucket.hipt) {
+    if(bucket.lo > bucket.hi) {
       bucket.deleted = true
       var stop = false
       var internalOpt = bucket.parent
@@ -188,7 +186,7 @@ case class KdTree(pointSet: PointSet) {
           case None =>
             stop = true
           case Some(internal) =>
-            if(internal.loson.deleted && internal.hison.deleted) {
+            if(internal.loSon.deleted && internal.hiSon.deleted) {
               internal.deleted = true
               internalOpt = internal.parent
             } else
@@ -209,7 +207,7 @@ case class KdTree(pointSet: PointSet) {
 
       node match {
         case bucket: Bucket =>
-          for (i <- bucket.lopt to bucket.hipt) {
+          for (i <- bucket.lo to bucket.hi) {
             val pt = perms(i)
             val dist = pointSet.distance(pt, nnTarget)
             if (dist < nnDist) {
@@ -221,13 +219,13 @@ case class KdTree(pointSet: PointSet) {
           val cutVal = internal.cutVal
           val targetVal = pointSet.coord(nnTarget, internal.cutCoord)
           if (targetVal < cutVal) {
-            rnn(internal.loson)
+            rnn(internal.loSon)
             if (targetVal + nnDist > cutVal)
-              rnn(internal.hison)
+              rnn(internal.hiSon)
           } else {
-            rnn(internal.hison)
+            rnn(internal.hiSon)
             if (targetVal - nnDist < cutVal)
-              rnn(internal.loson)
+              rnn(internal.loSon)
           }
       }
     }
@@ -252,11 +250,11 @@ sealed trait KdNode {
 }
 
 case class Internal(parent : Option[Internal], cutCoord : Coordinate.Value, cutVal : Double) extends KdNode {
-  var loson : KdNode = null // these are really immutable but cyclic structure of tree prevents using vals
-  var hison : KdNode = null
+  var loSon : KdNode = null // these are really immutable but cyclic structure of tree prevents using vals
+  var hiSon : KdNode = null
 }
 
-case class Bucket(parent : Option[Internal], lopt : Int, var hipt : Int) extends KdNode {
+case class Bucket(parent : Option[Internal], lo : Int, var hi : Int) extends KdNode {
 }
 
 
