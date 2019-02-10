@@ -1,5 +1,20 @@
 package point
 
+import scala.util.Random
+
+object ArrayPointSet {
+  def apply(rnd : Random, size : Int, min : Int, max : Int) : ArrayPointSet = {
+    val range = max-min+1
+    val xs = Array.fill[Int](size)(min+rnd.nextInt(range))
+    val ys = Array.fill[Int](size)(min+rnd.nextInt(range))
+    new ArrayPointSet(xs, ys)
+  }
+
+  def apply(xs : Array[Int], ys : Array[Int]) : ArrayPointSet = {
+    new ArrayPointSet(xs, ys)
+  }
+}
+
 class ArrayPointSet(val xs : Array[Int], val ys : Array[Int]) extends PointSet {
   require(xs.length == ys.length, "arrays for x and y coordinates should have same length")
 
@@ -17,8 +32,8 @@ class ArrayPointSet(val xs : Array[Int], val ys : Array[Int]) extends PointSet {
 
   // assumes i and j are within range. Doesn't check for efficiency's sake
   override def distance(i: Int, j: Int): Double = {
-    val x = xs(i)
-    val y = ys(i)
-    math.sqrt(x*x + y*y)
+    val dx = xs(i) - xs(j)
+    val dy = ys(i) - ys(j)
+    math.sqrt(dx*dx + dy*dy)
   }
 }
