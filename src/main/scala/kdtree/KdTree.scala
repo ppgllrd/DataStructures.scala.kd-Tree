@@ -12,17 +12,19 @@
 
 package kdtree
 
-import point.{Coordinate, PointSet}
+import point.{ArrayPointSet, Coordinate, PointSet}
 
 
 
-case class KdTree(pointSet: PointSet, bucketSize : Int = 3) {
+case class KdTree(pointSet: PointSet, bucketSize : Int = 5) {
   val size : Int = pointSet.size
 
-  protected val perms = new Array[Int](size) // permutation of points
+  // a permutation of points in pointSet
+  protected val perms = new Array[Int](size)
   for(i <- perms.indices)
     perms(i) = i // start with identity permutation
 
+  // buckets(i) is bucket where pointSet(i) is stored
   protected val buckets = new Array[Bucket](size)
 
   protected val root : KdNode = build(0, size-1, None)
@@ -144,9 +146,9 @@ case class KdTree(pointSet: PointSet, bucketSize : Int = 3) {
     }
   }
 
-  protected def build(lo : Int, hi : Int, parent : Option[Internal]) : KdNode =
+  protected def build(lo : Int, hi : Int, parentOpt : Option[Internal]) : KdNode =
     if(hi-lo+1 <= bucketSize) {
-      val bucket = Bucket(parent, lo, hi)
+      val bucket = Bucket(parentOpt, lo, hi, hi)
       for(i <- lo to hi)
         buckets(perms(i)) = bucket // all these points are stored in this bucket
       bucket
@@ -160,9 +162,9 @@ case class KdTree(pointSet: PointSet, bucketSize : Int = 3) {
         case Coordinate.y => selectY(lo, hi, m)
       }
 
-      val cutVal = pointSet.coord(m, cutCoord)
+      val cutVal = pointSet.coord(perms(m), cutCoord)
 
-      val internal = Internal(parent, cutCoord, cutVal)
+      val internal = Internal(parentOpt, cutCoord, cutVal)
       val someParent = Some(internal)
       internal.loSon = build(lo, m, someParent)
       internal.hiSon = build(m+1, hi, someParent)
@@ -179,6 +181,7 @@ case class KdTree(pointSet: PointSet, bucketSize : Int = 3) {
 
     if(bucket.lo > bucket.hi) {
       bucket.deleted = true
+
       var stop = false
       var internalOpt = bucket.parent
       while(!stop) {
@@ -192,6 +195,29 @@ case class KdTree(pointSet: PointSet, bucketSize : Int = 3) {
             } else
               stop = true
         }
+      }
+    }
+  }
+
+  def undelete(i : Int): Unit = {
+    val bucket = buckets(i)
+    var j = bucket.end
+    while(perms(j) != i)
+      j -= 1
+    bucket.hi += 1
+    swap(j, bucket.hi)
+
+    bucket.deleted = false
+
+    var stop = false
+    var internalOpt = bucket.parent
+    while(!stop) {
+      internalOpt match {
+        case None =>
+          stop = true
+        case Some(internal) =>
+          internal.deleted = false
+          internalOpt = internal.parent
       }
     }
   }
@@ -224,7 +250,7 @@ case class KdTree(pointSet: PointSet, bucketSize : Int = 3) {
               rnn(internal.hiSon)
           } else {
             rnn(internal.hiSon)
-            if (targetVal - nnDist < cutVal)
+            if (targetVal - nnDist < cutVal) //???
               rnn(internal.loSon)
           }
       }
@@ -254,16 +280,51 @@ case class Internal(parent : Option[Internal], cutCoord : Coordinate.Value, cutV
   var hiSon : KdNode = null
 }
 
-case class Bucket(parent : Option[Internal], lo : Int, var hi : Int) extends KdNode {
+case class Bucket(parent : Option[Internal], lo : Int, var hi : Int, val end : Int) extends KdNode {
 }
 
 
 object Test extends App {
+
+  def test(pointSet: PointSet): Unit = {
+    val kd = KdTree(pointSet, 5)
+
+    for(target <- 0 until pointSet.size) {
+      val sortedByDist = Array.range(0, pointSet.size).sortBy(pointSet.distance(target, _))
+
+      println(sortedByDist.mkString(" "))
+      // println(ps.map(i => (i,pointSet.distance(0,i))).mkString(" "))
+
+      val kdSorted = new Array[Int](pointSet.size)
+      for (i <- 0 until pointSet.size) {
+        val nn = kd.nearestNeighbour(target)
+        kdSorted(i) = nn
+        kd.delete(nn)
+      }
+      println(kdSorted.mkString(" "))
+      println()
+
+      val ok = sortedByDist.sameElements(kdSorted)
+      assert(ok, "test failed")
+
+      for (i <- 0 until pointSet.size)  // todo use undeleteAll
+        kd.undelete(i)
+    }
+  }
+
+
+  val seed = 10
+  val rnd = new scala.util.Random(seed)
+  val ps1 = ArrayPointSet(rnd, 20, -100, 100)
+
+  test(ps1)
+
+  /*
   val xs = Array( 4, 5,2,7, 8, 9,10,7,15,12,21,33,98, 45,23,0)
   val ys = Array(42,57,2,7,18,19,10,5,85,11,51,33,65,145,32,0)
-  val pointSet = new point.ArrayPointSet(xs, ys)
+  val pointSet = point.ArrayPointSet(xs, ys)
 
-  val kd = KdTree(pointSet)
+  val kd = KdTree(pointSet, 5)
 
   println(kd.nearestNeighbour(0))
   println(kd.nearestNeighbour(1))
@@ -273,4 +334,11 @@ object Test extends App {
 
   println(kd.nearestNeighbour(0))
   println(kd.nearestNeighbour(1))
+
+  kd.undelete(14)
+  kd.undelete(4)
+
+  println(kd.nearestNeighbour(0))
+  println(kd.nearestNeighbour(1))
+*/
 }
