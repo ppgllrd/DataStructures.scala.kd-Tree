@@ -30,7 +30,7 @@ object TestKdTree extends App {
 
   for(seed <- 0 until 10) {
     val rnd = new scala.util.Random(seed)
-    val ps = CachedArrayPointSet(rnd, 500, -1000, 1000)
+    val ps = CachedArrayPointSet.uniform(rnd, 500, -1000, 1000)
 
     test(ps)
   }

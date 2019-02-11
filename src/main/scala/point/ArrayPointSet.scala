@@ -10,11 +10,19 @@ package point
 import scala.util.Random
 
 object ArrayPointSet {
-  def apply(rnd: Random, size: Int, min: Int, max: Int): ArrayPointSet = {
+  def uniform(rnd: Random, size: Int, min: Int, max: Int): ArrayPointSet = {
     val xs = new Array[Int](size)
     val ys = new Array[Int](size)
     val pointSet = new ArrayPointSet(xs, ys)
-    pointSet.fillRandomly(rnd, min, max)
+    pointSet.randomUniform(rnd, min, max)
+    pointSet
+  }
+
+  def normal(rnd: Random, size: Int, sigma: Double = 1): ArrayPointSet = {
+    val xs = new Array[Int](size)
+    val ys = new Array[Int](size)
+    val pointSet = new ArrayPointSet(xs, ys)
+    pointSet.randomNormal(rnd, sigma)
     pointSet
   }
 
@@ -52,11 +60,20 @@ class ArrayPointSet(val xs: Array[Int], val ys: Array[Int]) extends PointSet {
     dx * dx + dy * dy
   }
 
-  def fillRandomly(rnd: Random, min: Int, max: Int): Unit = {
+  def randomUniform(rnd: Random, min: Int, max: Int): Unit = {
     val range = max - min + 1
-    for(i <- xs.indices) {
+    for (i <- xs.indices) {
       xs(i) = min + rnd.nextInt(range)
       ys(i) = min + rnd.nextInt(range)
+    }
+  }
+
+  def randomNormal(rnd: Random, sigma: Double = 1): Unit = {
+    val mu = 0.0
+    val resolution = 100000000
+    for (i <- xs.indices) {
+      xs(i) = (resolution * (mu + sigma * rnd.nextGaussian())).toInt
+      ys(i) = (resolution * (mu + sigma * rnd.nextGaussian())).toInt
     }
   }
 }
@@ -66,11 +83,19 @@ class ArrayPointSet(val xs: Array[Int], val ys: Array[Int]) extends PointSet {
 // speed-up subsequent queries
 
 object CachedArrayPointSet {
-  def apply(rnd: Random, size: Int, min: Int, max: Int): CachedArrayPointSet = {
+  def uniform(rnd: Random, size: Int, min: Int, max: Int): CachedArrayPointSet = {
     val xs = new Array[Int](size)
     val ys = new Array[Int](size)
     val pointSet = new CachedArrayPointSet(xs, ys)
-    pointSet.fillRandomly(rnd, min, max)
+    pointSet.randomUniform(rnd, min, max)
+    pointSet
+  }
+
+  def normal(rnd: Random, size: Int, sigma: Double = 1): CachedArrayPointSet = {
+    val xs = new Array[Int](size)
+    val ys = new Array[Int](size)
+    val pointSet = new CachedArrayPointSet(xs, ys)
+    pointSet.randomNormal(rnd, sigma)
     pointSet
   }
 
@@ -82,7 +107,7 @@ object CachedArrayPointSet {
 class CachedArrayPointSet(xs: Array[Int], ys: Array[Int]) extends ArrayPointSet(xs, ys) {
   private val cacheSize = {
     var sz = 1
-    while(sz < size)
+    while (sz < size)
       sz *= 2
     sz
   }
@@ -90,10 +115,10 @@ class CachedArrayPointSet(xs: Array[Int], ys: Array[Int]) extends ArrayPointSet(
   private val cacheSig = Array.fill[Int](cacheSize)(-1)
   private val cacheVal = new Array[Double](cacheSize)
 
-  override def distance(i: Int, j:Int): Double = {
-    val sig = if(i <= j) i else j
+  override def distance(i: Int, j: Int): Double = {
+    val sig = if (i <= j) i else j
     val hash = i ^ j
-    if(cacheSig(hash) != sig) {
+    if (cacheSig(hash) != sig) {
       cacheSig(hash) = sig
       cacheVal(hash) = super.distance(i, j)
     }

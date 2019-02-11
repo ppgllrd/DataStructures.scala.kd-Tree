@@ -30,8 +30,8 @@ case class KdTree(pointSet: PointSet, bucketSize: Int = 5) {
   protected val buckets = new Array[Bucket](pointSet.size)
 
   protected val root: KdNode = {
-    val (xLeft, yTop, xRight, yBottom) = pointSet.bounds()
-    build(0, pointSet.size - 1, None, xLeft, yTop, xRight, yBottom)
+    val (xMin, yMin, xMax, yMax) = pointSet.bounds
+    build(0, pointSet.size - 1, None, xMin, yMin, xMax, yMax)
   }
 
   private def swap(i: Int, j: Int): Unit = {
@@ -123,9 +123,9 @@ case class KdTree(pointSet: PointSet, bucketSize: Int = 5) {
     }
   }
 
-  private def build(lo: Int, hi: Int, parentOpt: Option[Internal], xLeft:Int, yTop:Int, xRight:Int, yBottom:Int): KdNode =
+  private def build(lo: Int, hi: Int, parentOpt: Option[Internal], xMin:Int, yMin:Int, xMax:Int, yMax:Int): KdNode =
     if (hi - lo + 1 <= bucketSize) {
-      val bucket = Bucket(parentOpt, lo, hi, hi, xLeft, yTop, xRight, yBottom)
+      val bucket = Bucket(parentOpt, lo, hi, hi, xMin, yMin, xMax, yMax)
       for (i <- lo to hi)
         buckets(perms(i)) = bucket // all these points are stored in this bucket
 
@@ -135,7 +135,7 @@ case class KdTree(pointSet: PointSet, bucketSize: Int = 5) {
       val m = (lo + hi) / 2
 
       val (cutAxis, cutVal) =
-        if(xRight - xLeft > yBottom - yTop) { // select cut axis according to max spread
+        if(xMax - xMin > yMax - yMin) { // select cut axis according to max spread
           selectX(lo, hi, m)
           (Axis.x, pointSet.x(perms(m)))
         } else {
@@ -143,16 +143,16 @@ case class KdTree(pointSet: PointSet, bucketSize: Int = 5) {
           (Axis.y, pointSet.y(perms(m)))
         }
 
-      val internal = Internal(parentOpt, cutAxis, cutVal, xLeft, yTop, xRight, yBottom)
+      val internal = Internal(parentOpt, cutAxis, cutVal, xMin, yMin, xMax, yMax)
       val someParent = Some(internal)
 
       cutAxis match {
         case Axis.x =>
-          internal.loSon = build(lo, m, someParent, xLeft, yTop, cutVal, yBottom)
-          internal.hiSon = build(m + 1, hi, someParent, cutVal, yTop, xRight, yBottom)
+          internal.loSon = build(lo, m, someParent, xMin, yMin, cutVal, yMax)
+          internal.hiSon = build(m + 1, hi, someParent, cutVal, yMin, xMax, yMax)
         case Axis.y =>
-          internal.loSon = build(lo, m, someParent, xLeft, yTop, xRight, cutVal)
-          internal.hiSon = build(m + 1, hi, someParent, xLeft, cutVal, xRight, yBottom)
+          internal.loSon = build(lo, m, someParent, xMin, yMin, xMax, cutVal)
+          internal.hiSon = build(m + 1, hi, someParent, xMin, cutVal, xMax, yMax)
       }
 
       internal
@@ -229,11 +229,11 @@ case class KdTree(pointSet: PointSet, bucketSize: Int = 5) {
     aux(root)
   }
 
-  private def circleInBounds(i: Int, radius: Double, xLeft: Int, yTop: Int, xRight:Int, yBottom: Int) : Boolean = {
+  private def circleInBounds(i: Int, radius: Double, xMin: Int, yMin: Int, xMax:Int, yMax: Int) : Boolean = {
     val x = pointSet.x(i)
     val y = pointSet.y(i)
-    (x-radius) >= xLeft && (x+radius) <= xRight &&
-      (y-radius) >= yTop && (y+radius) <= yBottom
+    (x-radius) >= xMin && (x+radius) <= xMax &&
+      (y-radius) >= yMin && (y+radius) <= yMax
   }
 
   private object Searcher {
@@ -300,7 +300,7 @@ case class KdTree(pointSet: PointSet, bucketSize: Int = 5) {
               else
                 rnn(internal.loSon)
             }
-            if(circleInBounds(target, minDist, internal.xLeft, internal.yTop, internal.xRight, internal.yBottom))
+            if(circleInBounds(target, minDist, internal.xMin, internal.yMin, internal.xMax, internal.yMax))
               stop = true
         }
       }
@@ -318,13 +318,13 @@ sealed trait KdNode {
   val parent: Option[Internal]
   var deleted: Boolean = false
 
-  val xLeft, yTop, xRight, yBottom: Int
+  val xMin, yMin, xMax, yMax: Int
 }
 
-case class Internal(parent: Option[Internal], cutAxis: Axis.Value, cutVal: Double, xLeft:Int, yTop:Int, xRight:Int, yBottom:Int) extends KdNode {
+case class Internal(parent: Option[Internal], cutAxis: Axis.Value, cutVal: Double, xMin:Int, yMin:Int, xMax:Int, yMax:Int) extends KdNode {
   var loSon: KdNode = null // these are really immutable but cyclic structure of tree prevents using vals
   var hiSon: KdNode = null
 }
 
-case class Bucket(parent: Option[Internal], lo: Int, var hi: Int, end: Int, xLeft:Int, yTop:Int, xRight:Int, yBottom:Int) extends KdNode
+case class Bucket(parent: Option[Internal], lo: Int, var hi: Int, end: Int, xMin:Int, yMin:Int, xMax:Int, yMax:Int) extends KdNode
 
