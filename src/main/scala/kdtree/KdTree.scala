@@ -238,8 +238,9 @@ case class KdTree(pointSet: PointSet, bucketSize: Int = 5) {
 
   private object Searcher {
     var target: Int = _
-    var minDist: Double = _
-    var nn: Int = _
+    var allowedDist: Double = _
+    var nearestNeighbor: Int = _
+    var onFound: (Int,Double) => Unit = _
 
     def rnn(node: KdNode): Unit = {
       if (node.deleted)
@@ -250,9 +251,9 @@ case class KdTree(pointSet: PointSet, bucketSize: Int = 5) {
           for (i <- bucket.lo to bucket.hi) {
             val pt = perms(i)
             val dist = pointSet.distance(pt, target)
-            if (dist < minDist) {
-              minDist = dist
-              nn = pt
+            if (dist < allowedDist) {
+              allowedDist = dist
+              nearestNeighbor = pt
             }
           }
         case internal: Internal =>
@@ -260,11 +261,11 @@ case class KdTree(pointSet: PointSet, bucketSize: Int = 5) {
           val targetVal = pointSet.coord(target, internal.cutAxis)
           if (targetVal < cutVal) {
             rnn(internal.loSon)
-            if (targetVal + minDist > cutVal)
+            if (targetVal + allowedDist > cutVal)
               rnn(internal.hiSon)
           } else {
             rnn(internal.hiSon)
-            if (targetVal - minDist < cutVal)
+            if (targetVal - allowedDist < cutVal)
               rnn(internal.loSon)
           }
       }
@@ -272,15 +273,15 @@ case class KdTree(pointSet: PointSet, bucketSize: Int = 5) {
 
     def topDown(i: Int): Int = {
       target = i
-      minDist = Double.MaxValue
+      allowedDist = Double.MaxValue
 
       rnn(root)
-      nn
+      nearestNeighbor
     }
 
     def bottomUp(i: Int): Int = {
       target = i
-      minDist = Double.MaxValue
+      allowedDist = Double.MaxValue
 
       var node : KdNode = buckets(target)
       rnn(node)
@@ -294,23 +295,95 @@ case class KdTree(pointSet: PointSet, bucketSize: Int = 5) {
             val lastNode = node
             node = internal
             val diff = pointSet.coord(target, internal.cutAxis) - internal.cutVal
-            if(minDist >= diff) {
+            if(allowedDist >= diff) {
               if(lastNode == internal.loSon)
                 rnn(internal.hiSon)
               else
                 rnn(internal.loSon)
             }
-            if(circleInBounds(target, minDist, internal.xMin, internal.yMin, internal.xMax, internal.yMax))
+            if(circleInBounds(target, allowedDist, internal.xMin, internal.yMin, internal.xMax, internal.yMax))
               stop = true
         }
       }
 
-      nn
+      nearestNeighbor
+    }
+
+    def rfrnn(node: KdNode): Unit = {
+      if (node.deleted)
+        return
+
+      node match {
+        case bucket: Bucket =>
+          for (i <- bucket.lo to bucket.hi) {
+            val pt = perms(i)
+            val dist = pointSet.distance(pt, target)
+            if (dist <= allowedDist) {
+              onFound(pt, dist)
+            }
+          }
+        case internal: Internal =>
+          val diff = pointSet.coord(target, internal.cutAxis) - internal.cutVal
+          if (diff < 0) {
+            rfrnn(internal.loSon)
+            if (allowedDist >= -diff)
+              rfrnn(internal.hiSon)
+          } else {
+            rfrnn(internal.hiSon)
+            if (allowedDist >= diff)
+              rfrnn(internal.loSon)
+          }
+      }
+    }
+
+    def withinRadius(i: Int, radius: Double, callback: (Int,Double) => Unit): Unit = {
+      target = i
+      allowedDist = radius
+      onFound = callback
+
+      var node : KdNode = buckets(target)
+      rfrnn(node)
+
+      var stop = false
+      while(!stop) {
+        node.parent match {
+          case None =>
+            stop = true
+          case Some(internal) =>
+            val lastNode = node
+            node = internal
+            val diff = pointSet.coord(target, internal.cutAxis) - internal.cutVal
+
+            if(lastNode == internal.loSon) {
+              if (allowedDist >= -diff)
+                rfrnn(internal.hiSon)
+            } else {
+              if (allowedDist >= diff)
+                rfrnn(internal.loSon)
+            }
+
+            if(circleInBounds(target, allowedDist, internal.xMin, internal.yMin, internal.xMax, internal.yMax))
+              stop = true
+        }
+      }
     }
   }
 
-  def nearestNeighbour(i: Int): Int =
+  def nearestNeighbor(i: Int): Int =
     Searcher.bottomUp(i)
+
+  // calls callback for every point within radius distance of point i
+  // first parameter of callback is such point and second is
+  // its distance to point i
+  def withinRadius(i: Int, radius: Double, callback: (Int,Double) => Unit): Unit =
+    Searcher.withinRadius(i, radius, callback)
+
+  // Can be used to reduce radius used by withinRadius during search
+  def shrinkSearchRadius(radius: Double): Unit = {
+    if(radius>Searcher.allowedDist)
+      throw new IllegalArgumentException("shrinkSearchRadius. new radius can't be larger")
+    Searcher.allowedDist = radius
+  }
 }
 
 

@@ -6,6 +6,13 @@ object TestKdTree extends App {
     val kd = KdTree(pointSet, 5)
 
     for (target <- 0 until pointSet.size) {
+      val radius = 100
+      kd.withinRadius(target, radius,
+        (pt,d) => {
+          println(pt, d)
+          assert(d==pointSet.distance(pt, target) && d <= radius, "withinRadius test failed")
+        })
+
       val sortedByDist = Array.range(0, pointSet.size).sortBy(pointSet.distance(target, _))
 
       println(sortedByDist.mkString(" "))
@@ -13,7 +20,7 @@ object TestKdTree extends App {
 
       val kdSorted = new Array[Int](pointSet.size)
       for (i <- 0 until pointSet.size) {
-        val nn = kd.nearestNeighbour(target)
+        val nn = kd.nearestNeighbor(target)
         kdSorted(i) = nn
         kd.delete(nn)
       }
