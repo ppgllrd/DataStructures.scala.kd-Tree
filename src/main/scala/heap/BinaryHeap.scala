@@ -14,7 +14,7 @@ object BinaryHeap {
     new BinaryHeap[A](capacity)
 }
 
-class BinaryHeap[A: Manifest](capacity: Int) {
+class BinaryHeap[@specialized A: Manifest](capacity: Int) {
   protected val orders = new Array[Double](capacity + 1)
   protected val elements = new Array[A](capacity + 1)
   protected var nextFree: Int = 1

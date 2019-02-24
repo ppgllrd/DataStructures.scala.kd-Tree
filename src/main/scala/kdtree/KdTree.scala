@@ -1,5 +1,5 @@
 /** ****************************************************************************
-  * Semidynamic K-d Trees
+  * Semidynamic K-d Trees in 2 dimensions (a 2-d tree, really)
   *
   * Pepe Gallardo, 2019
   *
@@ -19,6 +19,8 @@ import point.{Axis, PointSet}
 case class KdTree(pointSet: PointSet, bucketSize: Int = 5) {
   private var dynamicSize: Int = pointSet.size
 
+  // returns current number of points stored in this K-d tree,
+  // taking into account deleted and undeleted points
   def size: Int = dynamicSize
 
   // a permutation of points in pointSet
@@ -29,6 +31,7 @@ case class KdTree(pointSet: PointSet, bucketSize: Int = 5) {
   // buckets(i) is bucket where pointSet(i) is stored
   protected val buckets = new Array[Bucket](pointSet.size)
 
+  // root of the tree
   protected val root: KdNode = {
     val (xMin, yMin, xMax, yMax) = pointSet.bounds
     build(0, pointSet.size - 1, None, xMin, yMin, xMax, yMax)
@@ -40,7 +43,7 @@ case class KdTree(pointSet: PointSet, bucketSize: Int = 5) {
     perms(j) = tmp
   }
 
-  /* Lomuto partition scheme.
+  /* Lomuto partition scheme specialized for x axis.
    *
    * Returns final position of pivot.
    * Postcondition:
@@ -279,7 +282,7 @@ case class KdTree(pointSet: PointSet, bucketSize: Int = 5) {
       nearestNeighbor
     }
 
-    def bottomUp(i: Int): Int = {
+    def bottomUp(i: Int): (Int, Double) = {
       target = i
       allowedDist = Double.MaxValue
 
@@ -306,7 +309,7 @@ case class KdTree(pointSet: PointSet, bucketSize: Int = 5) {
         }
       }
 
-      nearestNeighbor
+      (nearestNeighbor, allowedDist)
     }
 
     def rfrnn(node: KdNode): Unit = {
@@ -369,13 +372,14 @@ case class KdTree(pointSet: PointSet, bucketSize: Int = 5) {
     }
   }
 
-  def nearestNeighbor(i: Int): Int =
+  // returns nearest neighbor to point t and corresponding distance
+  def nearestNeighbor(i: Int): (Int, Double) =
     Searcher.bottomUp(i)
 
   // calls callback for every point within radius distance of point i
   // first parameter of callback is such point and second is
   // its distance to point i
-  def withinRadius(i: Int, radius: Double, callback: (Int,Double) => Unit): Unit =
+  def withinRadius(i: Int, radius: Double, callback: (Int, Double) => Unit): Unit =
     Searcher.withinRadius(i, radius, callback)
 
   // Can be used to reduce radius used by withinRadius during search

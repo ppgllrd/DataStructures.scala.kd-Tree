@@ -1,5 +1,5 @@
 /** ****************************************************************************
-  * A bidimensional point
+  * A 2dimensional point
   *
   * Pepe Gallardo, 2019
   *
