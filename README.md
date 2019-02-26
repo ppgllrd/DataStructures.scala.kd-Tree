@@ -1,4 +1,4 @@
-# Semidynamic K-d Trees
+# Semidynamic K-d Trees in 2 dimensions
 
 See: K-d trees for semidynamic point sets
       Jon Louis Bentley
